@@ -23,6 +23,7 @@ def validate(model, data_loader, device):
 
         with torch.no_grad():
             loss_dict = model(images, targets)
+            print("output:",loss_dict)
             losses = sum(loss for loss in loss_dict.values())
             val_loss += losses.item()
 
@@ -51,7 +52,10 @@ num_epochs = 10
 for epoch in range(num_epochs):
     model.train()
     train_loss = 0
+    # 显示训练过程
     for images, targets in train_loader:
+        print(targets)  # 查看 targets 的结构    
+
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 

@@ -12,6 +12,30 @@ from torch.utils.data import Dataset
 from torchvision.transforms import functional as F
 from PIL import Image
 
+label_map = {
+    'background': 0,  # 通常为背景类别添加一个额外的 ID
+    'aeroplane': 1,
+    'bicycle': 2,
+    'bird': 3,
+    'boat': 4,
+    'bottle': 5,
+    'bus': 6,
+    'car': 7,
+    'cat': 8,
+    'chair': 9,
+    'cow': 10,
+    'diningtable': 11,
+    'dog': 12,
+    'horse': 13,
+    'motorbike': 14,
+    'person': 15,
+    'pottedplant': 16,
+    'sheep': 17,
+    'sofa': 18,
+    'train': 19,
+    'tvmonitor': 20
+}
+
 def parse_voc_xml(file):
     tree = ET.parse(file)
     root = tree.getroot()
@@ -34,6 +58,21 @@ def parse_voc_xml(file):
 
     return {'boxes': boxes, 'labels': labels}
 
+def transform_image_and_boxes(image, target, new_size=(800, 800)):
+    # 原始图像尺寸
+    orig_size = torch.tensor([image.width, image.height, image.width, image.height]).unsqueeze(0)
+    
+    # 调整图像尺寸
+    image = F.resize(image, new_size)
+
+    # 调整边界框尺寸
+    if "boxes" in target:
+        # 计算缩放比例
+        scale = torch.tensor([new_size[1], new_size[0], new_size[1], new_size[0]]).unsqueeze(0)
+        target["boxes"] = (target["boxes"] / orig_size) * scale
+
+    return image, target
+
 class CustomVOCDataset(Dataset):
     def __init__(self, img_dir, anno_dir, file_ids, transforms=None):
         self.img_dir = img_dir
@@ -50,13 +89,16 @@ class CustomVOCDataset(Dataset):
         annotation = parse_voc_xml(anno_path)
 
         # 你需要根据你的分类名转换为类别id
-        # labels = [your_label_map[label] for label in annotation['labels']]
-        labels = annotation['labels']
+        labels = [label_map[label] for label in annotation['labels']]
+        # labels = annotation['labels']
 
         target = {}
         target["boxes"] = torch.as_tensor(annotation['boxes'], dtype=torch.float32)
         target["labels"] = torch.as_tensor(labels, dtype=torch.int64)
         # 添加其他所需字段
+
+        # 图像和边界框调整
+        img, target = transform_image_and_boxes(img, target)
 
         if self.transforms is not None:
             img, target = self.transforms(img, target)
@@ -78,6 +120,13 @@ def split_dataset(base_dir):
 
     return train_ids, val_ids
 
+def collate_fn(batch):
+    images = [item[0] for item in batch]
+    targets = [item[1] for item in batch]
+
+    images = torch.stack(images, dim=0)
+    return images, targets
+
 def get_data_loaders(base_dir, train_transforms, val_transforms, batch_size=4):
     train_ids, val_ids = split_dataset(base_dir)
 
@@ -96,11 +145,11 @@ def get_data_loaders(base_dir, train_transforms, val_transforms, batch_size=4):
     )
 
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True
+        train_dataset, batch_size=batch_size, shuffle=True,collate_fn=collate_fn
     )
 
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=batch_size, shuffle=False
+        val_dataset, batch_size=batch_size, shuffle=False,collate_fn=collate_fn
     )
 
     return train_loader, val_loader
