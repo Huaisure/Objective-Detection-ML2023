@@ -1,18 +1,20 @@
-'''
+"""
 Discription: train the model
 Author: Huaishuo Liu
 Maintainer: Huaishuo Liu
 Created: 2023-12-20
-'''
+"""
 import torch
 import torchvision
 from torchvision.transforms import functional as F
 from model import create_faster_rcnn_model
 from data_preprocessing import get_data_loaders
 from torchvision.ops import box_iou
+import tqdm
 
 
-device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
 
 def validate(model, data_loader, device):
     model.eval()  # 将模型设置为评估模式
@@ -23,7 +25,7 @@ def validate(model, data_loader, device):
 
         with torch.no_grad():
             loss_dict = model(images, targets)
-            print("output:",loss_dict)
+            print("output:", loss_dict)
             losses = sum(loss for loss in loss_dict.values())
             val_loss += losses.item()
 
@@ -35,16 +37,22 @@ def train_transforms(img, target):
     img = F.to_tensor(img)
     return img, target
 
+
 def val_transforms(img, target):
     img = F.to_tensor(img)
     return img, target
 
-train_loader, val_loader = get_data_loaders('../data', train_transforms, val_transforms, batch_size=4)
+
+train_loader, val_loader = get_data_loaders(
+    "../data", train_transforms, val_transforms, batch_size=4
+)
 
 num_classes = 21  # 20 类 + 1 背景类
 model = create_faster_rcnn_model(num_classes).to(device)
 
-optimizer = torch.optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
+optimizer = torch.optim.SGD(
+    model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005
+)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
 num_epochs = 10
@@ -52,9 +60,12 @@ num_epochs = 10
 for epoch in range(num_epochs):
     model.train()
     train_loss = 0
-    # 显示训练过程
-    for images, targets in train_loader:
-        print(targets)  # 查看 targets 的结构    
+    # 训练过程显示，通过tqdm
+    print("##########")
+    print("Epoch:", epoch + 1)
+    print("##########")
+    for images, targets in tqdm.tqdm(train_loader):
+        print(targets)  # 查看 targets 的结构
 
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -79,4 +90,4 @@ for epoch in range(num_epochs):
 
 print("Training complete")
 
-torch.save(model.state_dict(), 'faster_rcnn_model.pth')
+torch.save(model.state_dict(), "faster_rcnn_model.pth")
