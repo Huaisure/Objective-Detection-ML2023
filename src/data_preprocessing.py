@@ -37,6 +37,10 @@ label_map = {
 }
 
 def parse_voc_xml(file):
+    '''
+    parse the xml file
+    return: a dictionary containing the bounding boxes and labels
+    '''
     tree = ET.parse(file)
     root = tree.getroot()
 
@@ -58,7 +62,11 @@ def parse_voc_xml(file):
 
     return {'boxes': boxes, 'labels': labels}
 
-def transform_image_and_boxes(image, target, new_size=(800, 800)):
+def transform_image_and_boxes(image, target, new_size=(800, 800)):# TODO: better new_size
+    '''
+    transform the image and bounding boxes
+    return: transformed image and bounding boxes
+    '''
     # 原始图像尺寸
     orig_size = torch.tensor([image.width, image.height, image.width, image.height]).unsqueeze(0)
     
@@ -85,17 +93,16 @@ class CustomVOCDataset(Dataset):
         img_path = os.path.join(self.img_dir, img_id + ".jpg")
         anno_path = os.path.join(self.anno_dir, img_id + ".xml")
 
+        # make sure the format of the image is RGB
         img = Image.open(img_path).convert("RGB")
         annotation = parse_voc_xml(anno_path)
 
-        # 你需要根据你的分类名转换为类别id
+        # convert labels to numbers present in the label_map
         labels = [label_map[label] for label in annotation['labels']]
-        # labels = annotation['labels']
 
         target = {}
         target["boxes"] = torch.as_tensor(annotation['boxes'], dtype=torch.float32)
         target["labels"] = torch.as_tensor(labels, dtype=torch.int64)
-        # 添加其他所需字段
 
         # 图像和边界框调整
         img, target = transform_image_and_boxes(img, target)
