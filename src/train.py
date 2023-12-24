@@ -15,7 +15,7 @@ from utils import *
 import argparse
 
 
-def train(load_model, train_transforms, val_transforms, verbose):
+def train(load_model, train_transforms, val_transforms, path_to_model, verbose):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     train_loader, val_loader = get_data_loaders(
@@ -75,7 +75,7 @@ def train(load_model, train_transforms, val_transforms, verbose):
     torch.save(model.state_dict(), "faster_rcnn_model.pth")
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_model", "-l", action="store_true", help="load model")
     parser.add_argument("--verbose", "-v", action="store_true", help="verbose")
@@ -84,4 +84,10 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    train(args.load_model, train_transforms, val_transforms, args.verbose)
+    train(
+        args.load_model, train_transforms, val_transforms, path_to_model, args.verbose
+    )
+
+
+if __name__ == "__main__":
+    main()
