@@ -12,18 +12,24 @@ from model import create_faster_rcnn_model
 from data_preprocessing import get_data_loaders
 import tqdm
 from utils import *
+import argparse
 
-def train():
 
+def train(load_model, train_transforms, val_transforms, verbose):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-
     train_loader, val_loader = get_data_loaders(
-        "./data", train_transforms, val_transforms, batch_size=4
+        "./data", train_transforms, val_transforms, batch_size=4, verbose=verbose
     )
 
     num_classes = 21  # 20 类 + 1 背景类
-    model = create_faster_rcnn_model(num_classes).to(device)
+
+    if load_model:
+        model = create_faster_rcnn_model(num_classes).to(device)
+        # 这里的路径需要根据实际情况修改
+        model.load_state_dict(torch.load(path_to_model))
+    else:
+        model = create_faster_rcnn_model(num_classes).to(device)
 
     optimizer = torch.optim.SGD(
         model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005
@@ -68,5 +74,14 @@ def train():
 
     torch.save(model.state_dict(), "faster_rcnn_model.pth")
 
+
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--load_model", "-l", action="store_true", help="load model")
+    parser.add_argument("--verbose", "-v", action="store_true", help="verbose")
+    path_to_model = (
+        "/home/stu8/workspace/Objective-Detectio-ML2023/faster_rcnn_model.pth"
+    )
+
+    args = parser.parse_args()
+    train(args.load_model, train_transforms, val_transforms, args.verbose)
