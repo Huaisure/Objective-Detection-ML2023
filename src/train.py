@@ -13,9 +13,17 @@ from data_preprocessing import get_data_loaders
 import tqdm
 from utils import *
 import argparse
+from matplotlib import pyplot as plt
 
 
-def train(load_model, train_transforms, val_transforms, path_to_model, verbose):
+def train(
+    load_model=False,
+    train_transforms=None,
+    val_transforms=None,
+    path_to_model=None,
+    verbose=False,
+    num_epochs=10,
+):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     train_loader, val_loader = get_data_loaders(
@@ -26,7 +34,6 @@ def train(load_model, train_transforms, val_transforms, path_to_model, verbose):
 
     if load_model:
         model = create_faster_rcnn_model(num_classes).to(device)
-        # 这里的路径需要根据实际情况修改
         model.load_state_dict(torch.load(path_to_model))
     else:
         model = create_faster_rcnn_model(num_classes).to(device)
@@ -36,8 +43,7 @@ def train(load_model, train_transforms, val_transforms, path_to_model, verbose):
     )
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
-    num_epochs = 10
-
+    val_losses = []
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0
@@ -46,11 +52,9 @@ def train(load_model, train_transforms, val_transforms, path_to_model, verbose):
         print("Epoch:", epoch + 1)
         print("##########")
         for images, targets in tqdm.tqdm(train_loader):
-            
-
             images = list(image.to(device) for image in images)
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-            print(targets)  # 查看 targets 的结构
+            # print(targets)  # 查看 targets 的结构
             loss_dict = model(images, targets)
             losses = sum(loss for loss in loss_dict.values())
             train_loss += losses.item()
@@ -62,12 +66,24 @@ def train(load_model, train_transforms, val_transforms, path_to_model, verbose):
         train_loss /= len(train_loader)
         num_class = 21
         val_loss = validate(model, val_loader, device, num_class)
+        val_losses.append(val_loss)
 
         print(f"Epoch {epoch+1}, Train loss: {train_loss}, Validation mAP: {val_loss}")
+        # 将结果保存到文件中
+        with open("result.txt", "a") as f:
+            f.write(
+                f"Epoch {epoch+1}, Train loss: {train_loss}, Validation mAP: {val_loss}\n"
+            )
+        f.close()
         # 更新学习率
         lr_scheduler.step()
 
     print("Training complete")
+    plt.plot(val_losses)
+    plt.xlabel("Epoch")
+    plt.ylabel("Validation mAP")
+    plt.title("Validation mAP vs. Number of epochs")
+    plt.savefig("result.png")
 
     torch.save(model.state_dict(), "faster_rcnn_model.pth")
 
@@ -76,13 +92,20 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--load_model", "-l", action="store_true", help="load model")
     parser.add_argument("--verbose", "-v", action="store_true", help="verbose")
+    parser.add_argument("--num_epochs", "-n", type=int, default=10, help="num_epochs")
+    # 根据实际情况修改路径
     path_to_model = (
         "/home/stu8/workspace/Objective-Detectio-ML2023/faster_rcnn_model.pth"
     )
 
     args = parser.parse_args()
     train(
-        args.load_model, train_transforms, val_transforms, path_to_model, args.verbose
+        load_model=args.load_model,
+        train_transforms=train_transforms,
+        val_transforms=val_transforms,
+        path_to_model=path_to_model,
+        verbose=args.verbose,
+        num_epochs=args.num_epochs,
     )
 
 

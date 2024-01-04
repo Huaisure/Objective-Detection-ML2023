@@ -4,6 +4,10 @@ import torchvision
 from torchvision.transforms import functional as F
 from torchvision.ops import box_iou
 import random
+from sklearn.metrics import average_precision_score
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
+import json
 
 
 def transform_image_and_boxes(
@@ -108,31 +112,97 @@ def calculate_ap_per_class(
 
     return np.mean(aps) if aps else 0.0
 
-
 def validate(model, data_loader, device, num_class):
     model.eval()
-    true_boxes, pred_boxes, pred_scores, pred_labels, true_labels = [], [], [], [], []
+    coco_gt = COCO()
+    coco_gt.dataset = {'images': [], 'annotations': [], 'categories': []}
+    image_id = 0
+    annotation_id = 0
 
-    with torch.no_grad():
-        for images, targets in data_loader:
-            images = [img.to(device) for img in images]
-            outputs = model(images)
+    predictions = []
 
-            for i, output in enumerate(outputs):
-                pred_boxes.append(output["boxes"].cpu())
-                pred_scores.append(output["scores"].cpu())
-                pred_labels.append(output["labels"].cpu())
+    for images, targets in data_loader:
+        images = list(img.to(device) for img in images)
+        outputs = model(images)
 
-                true_boxes.append(
-                    (targets[i]["boxes"].cpu(), targets[i]["labels"].cpu())
-                )
-                true_labels.extend(targets[i]["labels"].cpu().tolist())
+        for i, output in enumerate(outputs):
+            # 添加图像信息
+            coco_gt.dataset['images'].append({'id': image_id})
 
-    # 计算每个类别的 AP
-    mAP = calculate_ap_per_class(
-        num_class, true_boxes, pred_boxes, pred_scores, pred_labels, true_labels
-    )
-    return mAP
+            # 添加真实标签
+            for label, target in zip(targets[i]['labels'], targets[i]['boxes']):
+                x_min, y_min, x_max, y_max = target.unbind(0)
+                width = x_max - x_min
+                height = y_max - y_min
+                coco_gt.dataset['annotations'].append({
+                    'id': annotation_id,
+                    'image_id': image_id,
+                    'category_id': label.item(),
+                    'bbox': [x_min.item(), y_min.item(), width.item(), height.item()],
+                    'area': width.item() * height.item(),
+                    'iscrowd': 0
+                })
+                annotation_id += 1
+
+            # 添加预测
+            for box, label, score in zip(output['boxes'], output['labels'], output['scores']):
+                x_min, y_min, x_max, y_max = box.unbind(0)
+                width = x_max - x_min
+                height = y_max - y_min
+                predictions.append({
+                    'image_id': image_id,
+                    'category_id': label.item(),
+                    'bbox': [x_min.item(), y_min.item(), width.item(), height.item()],
+                    'score': score.item()
+                })
+
+            image_id += 1
+
+    # 添加类别信息
+    for i in range(1, num_class):
+        coco_gt.dataset['categories'].append({'id': i, 'name': str(i)})
+
+    coco_gt.createIndex()
+
+    # 加载预测数据
+    coco_dt = coco_gt.loadRes(predictions)
+
+    # COCO 评估
+    coco_eval = COCOeval(coco_gt, coco_dt, 'bbox')
+    coco_eval.evaluate()
+    coco_eval.accumulate()
+    coco_eval.summarize()
+
+    return coco_eval.stats[0]  # 返回 mAP
+
+
+
+def calculate_aps(all_preds, all_targets, num_class):
+    aps = []
+
+    for class_id in range(1, num_class):  # 排除背景类别
+        true_labels = []
+        pred_scores = []
+
+        for target, pred in zip(all_targets, all_preds):
+            # 对于每个图像，检查是否存在当前类别的目标
+            mask = target["labels"] == class_id
+            true_labels.extend(mask.int().tolist())
+
+            # 如果有预测分数，添加到列表中
+            pred_mask = pred["labels"] == class_id
+            if pred_mask.any():
+                pred_scores.extend(pred["scores"][pred_mask].tolist())
+            else:
+                # 如果没有预测，添加一个低置信度值
+                pred_scores.append(0.0)
+
+        # 计算当前类别的 AP
+        if true_labels and pred_scores:  # 确保列表不为空
+            ap = average_precision_score(true_labels, pred_scores)
+            aps.append(ap)
+
+    return aps
 
 
 def get_crop_params(img, target, output_size):
@@ -327,6 +397,6 @@ def train_transforms(img, target):
 
 def val_transforms(img, target):
     # 调整图像大小
-    img, target = transform_image_and_boxes(img, target, new_size=(256, 256))
+    img, target = transform_image_and_boxes(img, target, new_size=(500, 500))
     img = F.to_tensor(img)
     return img, target
