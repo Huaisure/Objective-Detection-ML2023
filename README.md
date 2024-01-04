@@ -13,7 +13,7 @@
 - **./src**: $~~~~$ 代码部分
     + data_preprocessing.py：处理数据；
     + model.py：模型文件；
-    + test_model.py：导入训练后模型，输入图片路径后得到模型检测后的图片；
+    + detection.py: 调用模型进行测试，以及实际使用；
     + train.py：训练脚本，--load_model表示导入先前训练的模型继续训练： 
     
     ```
@@ -21,5 +21,12 @@
     ```
     + utils.py：包含一些功能函数
 
+使用举例：（在根目录下）
+```
+python src/detection.py \
+--path_to_image Your_Path_to_Image \
+--path_to_model Your_Path_to_Model
+```
+可以完成对图片的目标检测，检测结果会以图片的形式存储在当前目录下。
 
 ⚠️ 如有疑问、建议请联系我 at 328333607@qq.com
