@@ -66,32 +66,6 @@ def parse_voc_xml(file):
     return {"boxes": boxes, "labels": labels}
 
 
-def transform_image_and_boxes(
-    image, target, new_size=(800, 800)
-):  # TODO: better new_size
-    """
-    transform the image and bounding boxes
-    return: transformed image and bounding boxes
-    """
-    # 原始图像尺寸
-    orig_size = torch.tensor(
-        [image.width, image.height, image.width, image.height]
-    ).unsqueeze(0)
-
-    # 调整图像尺寸
-    image = F.resize(image, new_size)
-
-    # 调整边界框尺寸
-    if "boxes" in target:
-        # 计算缩放比例
-        scale = torch.tensor(
-            [new_size[1], new_size[0], new_size[1], new_size[0]]
-        ).unsqueeze(0)
-        target["boxes"] = (target["boxes"] / orig_size) * scale
-
-    return image, target
-
-
 class CustomVOCDataset(Dataset):
     def __init__(self, img_dir, anno_dir, file_ids, transforms=None):
         self.img_dir = img_dir
@@ -115,8 +89,9 @@ class CustomVOCDataset(Dataset):
         target["boxes"] = torch.as_tensor(annotation["boxes"], dtype=torch.float32)
         target["labels"] = torch.as_tensor(labels, dtype=torch.int64)
 
+        # print("target:", target)
         # 图像和边界框调整
-        img, target = transform_image_and_boxes(img, target)
+        # img, target = transform_image_and_boxes(img, target)
 
         if self.transforms is not None:
             img, target = self.transforms(img, target)

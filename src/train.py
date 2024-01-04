@@ -46,11 +46,11 @@ def train(load_model, train_transforms, val_transforms, path_to_model, verbose):
         print("Epoch:", epoch + 1)
         print("##########")
         for images, targets in tqdm.tqdm(train_loader):
-            # print(targets)  # 查看 targets 的结构
+            
 
             images = list(image.to(device) for image in images)
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-
+            print(targets)  # 查看 targets 的结构
             loss_dict = model(images, targets)
             losses = sum(loss for loss in loss_dict.values())
             train_loss += losses.item()
