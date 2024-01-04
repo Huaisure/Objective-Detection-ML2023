@@ -6,7 +6,7 @@ from data_preprocessing import reverse_label_map
 import argparse
 
 
-def detection(path_to_image, path_to_model):
+def detection(path_to_image, path_to_model, verbose=False):
     # 根据训练时的类别数创建模型
     num_classes = 21  # 示例：20个类别 + 1个背景类别
     model = create_faster_rcnn_model(num_classes)
@@ -22,7 +22,8 @@ def detection(path_to_image, path_to_model):
     # 预测
     with torch.no_grad():
         prediction = model([img_tensor])[0]
-        print("########res:", prediction)
+        if verbose:
+            print("########res:", prediction)
 
     # 可视化结果
     draw = ImageDraw.Draw(img)
@@ -41,8 +42,11 @@ def detection(path_to_image, path_to_model):
             draw.text((box[0], box[1]), f"Label: {label}, Score: {score:.2f}")
 
     # 根据输入图像的名称保存图片,保存在当前目录下
-    img_name = path_to_image.split("/")[-1]
+    img_name = path_to_image.split("/")[-1].split(".")[0]
     img.save(f"{img_name}_prediction.jpg")
+    print(
+        "Done! Prediction saved as", f"{img_name}_prediction.jpg in current directory"
+    )
 
 
 if __name__ == "__main__":
@@ -57,10 +61,15 @@ if __name__ == "__main__":
         default="/home/stu8/workspace/Objective-Detectio-ML2023/faster_rcnn_model.pth",
         help="path_to_model",
     )
+    parser.add_argument("--verbose", "-v", action="store_true", help="verbose")
     # 根据实际情况修改路径
     args = parser.parse_args()
     if args.path_to_image == None:
         print("please input path_to_image")
     path_to_model = args.path_to_model
     path_to_image = args.path_to_image
-    detection()
+    # 测试时使用
+    # path_to_image ="./data/JPEGImages/2012_004113.jpg"
+    detection(
+        path_to_image=path_to_image, path_to_model=path_to_model, verbose=args.verbose
+    )

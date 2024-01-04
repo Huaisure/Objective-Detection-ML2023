@@ -79,11 +79,11 @@ def train(
         lr_scheduler.step()
 
     print("Training complete")
-    plt.plot(val_losses)
+    # 保存训练结果,绘制图像，横坐标为epoch，纵坐标为validation mAP
+    plt.plot(range(1, num_epochs + 1), val_losses)
     plt.xlabel("Epoch")
     plt.ylabel("Validation mAP")
-    plt.title("Validation mAP vs. Number of epochs")
-    plt.savefig("result.png")
+    plt.savefig("result.jpg")
 
     torch.save(model.state_dict(), "faster_rcnn_model.pth")
 
