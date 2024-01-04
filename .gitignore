@@ -2,5 +2,3 @@
 __MACOSX/._课程大作业介绍.pdf
 src/__pycache__/data_preprocessing.cpython-38.pyc
 src/__pycache__/model.cpython-38.pyc
-faster_rcnn_model.pth
-test.py
