@@ -311,6 +311,11 @@ def train_transforms(img, target):
     # 随机裁剪
     img, target = conditional_random_crop(img, target, output_size=(256, 256))
 
+    # 随机调整亮度、对比度和饱和度
+    img = F.adjust_brightness(img, brightness_factor=random.uniform(0.5, 1.5))
+    img = F.adjust_contrast(img, contrast_factor=random.uniform(0.5, 1.5))
+    img = F.adjust_saturation(img, saturation_factor=random.uniform(0.5, 1.5))
+
     # 随机翻转
     if np.random.rand() > 0.5:
         img = F.hflip(img)
@@ -321,6 +326,5 @@ def train_transforms(img, target):
 
 
 def val_transforms(img, target):
-    img, target = transform_image_and_boxes(img, target, new_size=(256, 256))
     img = F.to_tensor(img)
     return img, target

@@ -63,12 +63,9 @@ def train(load_model, train_transforms, val_transforms, path_to_model, verbose):
         num_class = 21
         val_loss = validate(model, val_loader, device, num_class)
 
-        print(f"Epoch {epoch+1}, Train loss: {train_loss}, Validation loss: {val_loss}")
+        print(f"Epoch {epoch+1}, Train loss: {train_loss}, Validation mAP: {val_loss}")
         # 更新学习率
         lr_scheduler.step()
-
-        # 验证阶段可以在这里添加
-        # ...
 
     print("Training complete")
 
