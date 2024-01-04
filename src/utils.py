@@ -326,5 +326,7 @@ def train_transforms(img, target):
 
 
 def val_transforms(img, target):
+    # 调整图像大小
+    img, target = transform_image_and_boxes(img, target, new_size=(256, 256))
     img = F.to_tensor(img)
     return img, target
