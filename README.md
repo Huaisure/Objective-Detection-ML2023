@@ -14,12 +14,6 @@
     - 对于每个 RoI 池化后的特征图，模型使用全连接层来预测物体的类别和调整边界框的坐标。
     - 这样，模型不仅可以识别图像中的物体，还可以精确地定位它们。   
 
-<div align="center">
-    <img src="img/faster_rcnn.jpg" alt="Faster R-CNN结构图" width="600">
-
-    图1 Faster-RCNN 网络结构图
-</div>
-
 Faster R-CNN 的主要优势在于它能够实现端到端的训练和较高的检测速度，同时保持较好的检测精度。它通过 RPN 有效地降低了候选区域的数量，并能精确地定位和分类物体。
 
 本项目在`src/model.py`中创建了一个Faster R-CNN模型，本身未经过训练。使用经过预训练的ResNet50作为骨干网络。定义RPN（区域建议网络）的锚点生成器，以及感兴趣区域（ROI）的池化层，结合这些创建了Faster R-CNN模型。
