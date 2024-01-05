@@ -82,24 +82,27 @@ def train(
         # 更新学习率
         lr_scheduler.step()
 
-        # 早期停止
-        if epoch > 5 and val_maps[-1] < val_maps[-2] and val_maps[-2] < val_maps[-3]:
-            print("Early stopping")
-            break
+        # 早期停止, 以train loss为指标
+        if epoch > 5:
+            if np.mean(train_losses[-2:]) > np.mean(train_losses[-4:-2]):
+                print("Early stop")
+                num_epochs = epoch + 1
+                break
 
     print("Training complete")
+    torch.save(model.state_dict(), f"faster_rcnn_model_{time}.pth")
+
     # 保存训练结果,绘制图像，横坐标为epoch，纵坐标为validation mAP
     plt.plot(range(1, num_epochs + 1), val_maps)
     plt.xlabel("Epoch")
     plt.ylabel("Validation mAP")
     plt.savefig(f"result_{time}_val_map.jpg")
+    plt.clf()
 
     plt.plot(range(1, num_epochs + 1), train_losses)
     plt.xlabel("Epoch")
     plt.ylabel("Train loss")
     plt.savefig(f"result_{time}_train_loss.jpg")
-
-    torch.save(model.state_dict(), f"faster_rcnn_model_{time}.pth")
 
 
 def main():

@@ -19,7 +19,7 @@ def create_faster_rcnn_model(num_classes):
 
     # RPN（Region Proposal Network）锚点生成器
     anchor_generator = AnchorGenerator(
-        sizes=((16, 32, 64, 128, 256),) * 5, aspect_ratios=((0.5, 1.0, 2.0),) * 5
+        sizes=((8, 16, 32, 64, 128, 256),) * 5, aspect_ratios=((0.5, 1.0, 2.0),) * 5
     )
 
     # ROI（Region of Interest）池化层
@@ -33,7 +33,7 @@ def create_faster_rcnn_model(num_classes):
         num_classes=num_classes,
         rpn_anchor_generator=anchor_generator,
         box_roi_pool=roi_pooler,
-        min_size=800,
+        min_size=500,
     )
 
     return model

@@ -36,83 +36,6 @@ def transform_image_and_boxes(
     return image, target
 
 
-def calculate_ap_per_class(
-    num_class,
-    true_boxes,
-    pred_boxes,
-    pred_scores,
-    pred_labels,
-    true_labels,
-    iou_threshold=0.5,
-):
-    # 按类别分类的预测边界框和分数
-    pred_boxes_class = {i: [] for i in range(num_class)}
-    true_boxes_class = {i: [] for i in range(num_class)}
-    pred_scores_class = {i: [] for i in range(num_class)}
-
-    # 将预测和真实边界框按类别分类
-    for i in range(len(pred_boxes)):
-        for p_box, p_score, p_label in zip(
-            pred_boxes[i], pred_scores[i], pred_labels[i]
-        ):
-            p_label = p_label.item()
-            pred_boxes_class[p_label].append(p_box)
-            pred_scores_class[p_label].append(p_score)
-
-        for t_box, t_label in zip(true_boxes[i][0], true_boxes[i][1]):
-            t_label = t_label.item()
-            true_boxes_class[t_label].append(t_box)
-
-    # 对每个类别计算 AP
-    aps = []
-    for c in range(num_class):
-        # 提取特定类别的预测框、分数和真实框
-        c_pred_boxes = pred_boxes_class[c]
-        c_true_boxes = true_boxes_class[c]
-        c_pred_scores = pred_scores_class[c]
-
-        # 检查预测框和真实框是否为空
-        if len(c_pred_boxes) == 0 or len(c_true_boxes) == 0:
-            continue  # 如果没有预测框或真实框，则跳过此类别
-
-        # 按分数降序排序预测框的索引
-        sorted_indices = np.argsort(-np.array(c_pred_scores))
-
-        tp = np.zeros(len(c_pred_boxes))
-        fp = np.zeros(len(c_pred_boxes))
-
-        for i, idx in enumerate(sorted_indices):
-            pred_box = c_pred_boxes[idx]
-
-            # 仅当存在真实框时计算 IOU
-            if len(c_true_boxes) > 0:
-                iou_max = (
-                    box_iou(torch.stack([pred_box]), torch.stack(c_true_boxes))
-                    .max()
-                    .item()
-                )
-            else:
-                iou_max = 0
-
-            if iou_max >= iou_threshold:
-                tp[i] = 1
-            else:
-                fp[i] = 1
-
-        # 计算累积 TP 和 FP
-        tp_cumsum = np.cumsum(tp)
-        fp_cumsum = np.cumsum(fp)
-
-        precision = tp_cumsum / (tp_cumsum + fp_cumsum)
-        recall = tp_cumsum / len(c_true_boxes)
-
-        # 计算 AP
-        ap = np.trapz(precision, recall)
-        aps.append(ap)
-
-    return np.mean(aps) if aps else 0.0
-
-
 def validate(model, data_loader, device, num_class):
     model.eval()
     coco_gt = COCO()
@@ -191,67 +114,6 @@ def validate(model, data_loader, device, num_class):
     coco_eval.summarize()
 
     return coco_eval.stats[0]  # 返回 mAP
-
-
-def calculate_aps(all_preds, all_targets, num_class):
-    aps = []
-
-    for class_id in range(1, num_class):  # 排除背景类别
-        true_labels = []
-        pred_scores = []
-
-        for target, pred in zip(all_targets, all_preds):
-            # 对于每个图像，检查是否存在当前类别的目标
-            mask = target["labels"] == class_id
-            true_labels.extend(mask.int().tolist())
-
-            # 如果有预测分数，添加到列表中
-            pred_mask = pred["labels"] == class_id
-            if pred_mask.any():
-                pred_scores.extend(pred["scores"][pred_mask].tolist())
-            else:
-                # 如果没有预测，添加一个低置信度值
-                pred_scores.append(0.0)
-
-        # 计算当前类别的 AP
-        if true_labels and pred_scores:  # 确保列表不为空
-            ap = average_precision_score(true_labels, pred_scores)
-            aps.append(ap)
-
-    return aps
-
-
-def get_crop_params(img, target, output_size):
-    """
-    保证裁剪后仍有目标在图像中"""
-    # 获取图像的宽度和高度
-    w, h = img.size
-    ischanged = False
-
-    # 获取所有目标的边界框
-    boxes = target["boxes"]
-
-    # 如果没有目标，返回整个图像的参数
-    if boxes.shape[0] == 0:
-        return 0, 0, w, h, ischanged
-
-    # 计算一个包含所有目标的边界框
-    min_x = boxes[:, 0].min().item()
-    min_y = boxes[:, 1].min().item()
-    max_x = boxes[:, 2].max().item()
-    max_y = boxes[:, 3].max().item()
-
-    # 如果单个目标太大无法完全包含在裁剪区域内，返回整个图像的参数
-    for box in boxes:
-        if box[2] - box[0] > output_size[0] or box[3] - box[1] > output_size[1]:
-            return 0, 0, w, h, ischanged
-
-    # 确保裁剪区域至少包含一个目标
-    i = random.randint(min_y, max_y - output_size[1])
-    j = random.randint(min_x, max_x - output_size[0])
-    ischanged = True
-
-    return i, j, output_size[0], output_size[1], ischanged
 
 
 def conditional_random_crop(img, targets, output_size=(256, 256)):
@@ -433,7 +295,7 @@ def train_transforms(img, target):
         target["boxes"][:, [0, 2]] = img.size[0] - target["boxes"][:, [2, 0]]
 
     # 调整图像大小
-    img, target = transform_image_and_boxes(img, target, new_size=(800, 800))
+    img, target = transform_image_and_boxes(img, target, new_size=(500, 500))
 
     img = F.to_tensor(img)
     # random cutout
@@ -444,6 +306,6 @@ def train_transforms(img, target):
 
 def val_transforms(img, target):
     # 调整图像大小
-    img, target = transform_image_and_boxes(img, target, new_size=(800, 800))
+    img, target = transform_image_and_boxes(img, target, new_size=(500, 500))
     img = F.to_tensor(img)
     return img, target
