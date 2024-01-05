@@ -112,10 +112,11 @@ def calculate_ap_per_class(
 
     return np.mean(aps) if aps else 0.0
 
+
 def validate(model, data_loader, device, num_class):
     model.eval()
     coco_gt = COCO()
-    coco_gt.dataset = {'images': [], 'annotations': [], 'categories': []}
+    coco_gt.dataset = {"images": [], "annotations": [], "categories": []}
     image_id = 0
     annotation_id = 0
 
@@ -127,40 +128,56 @@ def validate(model, data_loader, device, num_class):
 
         for i, output in enumerate(outputs):
             # 添加图像信息
-            coco_gt.dataset['images'].append({'id': image_id})
+            coco_gt.dataset["images"].append({"id": image_id})
 
             # 添加真实标签
-            for label, target in zip(targets[i]['labels'], targets[i]['boxes']):
+            for label, target in zip(targets[i]["labels"], targets[i]["boxes"]):
                 x_min, y_min, x_max, y_max = target.unbind(0)
                 width = x_max - x_min
                 height = y_max - y_min
-                coco_gt.dataset['annotations'].append({
-                    'id': annotation_id,
-                    'image_id': image_id,
-                    'category_id': label.item(),
-                    'bbox': [x_min.item(), y_min.item(), width.item(), height.item()],
-                    'area': width.item() * height.item(),
-                    'iscrowd': 0
-                })
+                coco_gt.dataset["annotations"].append(
+                    {
+                        "id": annotation_id,
+                        "image_id": image_id,
+                        "category_id": label.item(),
+                        "bbox": [
+                            x_min.item(),
+                            y_min.item(),
+                            width.item(),
+                            height.item(),
+                        ],
+                        "area": width.item() * height.item(),
+                        "iscrowd": 0,
+                    }
+                )
                 annotation_id += 1
 
             # 添加预测
-            for box, label, score in zip(output['boxes'], output['labels'], output['scores']):
+            for box, label, score in zip(
+                output["boxes"], output["labels"], output["scores"]
+            ):
                 x_min, y_min, x_max, y_max = box.unbind(0)
                 width = x_max - x_min
                 height = y_max - y_min
-                predictions.append({
-                    'image_id': image_id,
-                    'category_id': label.item(),
-                    'bbox': [x_min.item(), y_min.item(), width.item(), height.item()],
-                    'score': score.item()
-                })
+                predictions.append(
+                    {
+                        "image_id": image_id,
+                        "category_id": label.item(),
+                        "bbox": [
+                            x_min.item(),
+                            y_min.item(),
+                            width.item(),
+                            height.item(),
+                        ],
+                        "score": score.item(),
+                    }
+                )
 
             image_id += 1
 
     # 添加类别信息
     for i in range(1, num_class):
-        coco_gt.dataset['categories'].append({'id': i, 'name': str(i)})
+        coco_gt.dataset["categories"].append({"id": i, "name": str(i)})
 
     coco_gt.createIndex()
 
@@ -168,13 +185,12 @@ def validate(model, data_loader, device, num_class):
     coco_dt = coco_gt.loadRes(predictions)
 
     # COCO 评估
-    coco_eval = COCOeval(coco_gt, coco_dt, 'bbox')
+    coco_eval = COCOeval(coco_gt, coco_dt, "bbox")
     coco_eval.evaluate()
     coco_eval.accumulate()
     coco_eval.summarize()
 
     return coco_eval.stats[0]  # 返回 mAP
-
 
 
 def calculate_aps(all_preds, all_targets, num_class):
@@ -372,6 +388,30 @@ def rotate_box(bbox, angle, img_size):
     return torch.stack(new_boxes)
 
 
+def random_cutout(img, probability=0.5, max_holes=1, max_length=40):
+    """
+    随机剪切函数。
+    :param img: 输入图像。
+    :param probability: 应用剪切的概率。
+    :param max_holes: 最大剪切区域数量。
+    :param max_length: 剪切区域的最大长度。
+    :return: 处理后的图像。
+    """
+    if random.random() < probability:
+        h, w = img.size(1), img.size(2)
+        mask = torch.ones_like(img)
+        for _ in range(random.randint(1, max_holes)):
+            y = random.randint(0, h)
+            x = random.randint(0, w)
+            y1 = np.clip(y - max_length // 2, 0, h)
+            y2 = np.clip(y + max_length // 2, 0, h)
+            x1 = np.clip(x - max_length // 2, 0, w)
+            x2 = np.clip(x + max_length // 2, 0, w)
+            mask[:, y1:y2, x1:x2] = 0.0
+        img = img * mask
+    return img
+
+
 def train_transforms(img, target):
     # 随机旋转
     angle = torchvision.transforms.RandomRotation.get_params([-10, 10])
@@ -379,7 +419,8 @@ def train_transforms(img, target):
     target["boxes"] = rotate_box(target["boxes"], angle, img.size)
 
     # 随机裁剪
-    img, target = conditional_random_crop(img, target, output_size=(256, 256))
+    # img, target = conditional_random_crop(img, target, output_size=(256, 256))
+    # 经测试，随机裁剪会导致 mAP 下降
 
     # 随机调整亮度、对比度和饱和度
     img = F.adjust_brightness(img, brightness_factor=random.uniform(0.5, 1.5))
@@ -389,14 +430,20 @@ def train_transforms(img, target):
     # 随机翻转
     if np.random.rand() > 0.5:
         img = F.hflip(img)
-        target["boxes"][:, [0, 2]] = 256 - target["boxes"][:, [2, 0]]
+        target["boxes"][:, [0, 2]] = img.size[0] - target["boxes"][:, [2, 0]]
+
+    # 调整图像大小
+    img, target = transform_image_and_boxes(img, target, new_size=(800, 800))
 
     img = F.to_tensor(img)
+    # random cutout
+    img = random_cutout(img, probability=0.5, max_holes=1, max_length=40)
+
     return img, target
 
 
 def val_transforms(img, target):
     # 调整图像大小
-    img, target = transform_image_and_boxes(img, target, new_size=(500, 500))
+    img, target = transform_image_and_boxes(img, target, new_size=(800, 800))
     img = F.to_tensor(img)
     return img, target

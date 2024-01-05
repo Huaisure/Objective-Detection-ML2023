@@ -33,6 +33,7 @@ def create_faster_rcnn_model(num_classes):
         num_classes=num_classes,
         rpn_anchor_generator=anchor_generator,
         box_roi_pool=roi_pooler,
+        min_size=800,
     )
 
     return model

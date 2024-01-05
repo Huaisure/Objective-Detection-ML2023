@@ -14,6 +14,7 @@ import tqdm
 from utils import *
 import argparse
 from matplotlib import pyplot as plt
+from datetime import datetime
 
 
 def train(
@@ -27,7 +28,7 @@ def train(
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     train_loader, val_loader = get_data_loaders(
-        "./data", train_transforms, val_transforms, batch_size=4, verbose=verbose
+        "./data", train_transforms, val_transforms, batch_size=16, verbose=verbose
     )
 
     num_classes = 21  # 20 类 + 1 背景类
@@ -43,7 +44,9 @@ def train(
     )
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
-    val_losses = []
+    val_maps = []
+    train_losses = []
+    time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0
@@ -65,42 +68,56 @@ def train(
 
         train_loss /= len(train_loader)
         num_class = 21
-        val_loss = validate(model, val_loader, device, num_class)
-        val_losses.append(val_loss)
+        val_map = validate(model, val_loader, device, num_class)
+        val_maps.append(val_map)
+        train_losses.append(train_loss)
 
-        print(f"Epoch {epoch+1}, Train loss: {train_loss}, Validation mAP: {val_loss}")
-        # 将结果保存到文件中
-        with open("result.txt", "a") as f:
+        print(f"Epoch {epoch+1}, Train loss: {train_loss}, Validation mAP: {val_map}")
+        # 将结果保存到文件中，result_任务开始时间
+        with open(f"result_{time}.txt", "a") as f:
             f.write(
-                f"Epoch {epoch+1}, Train loss: {train_loss}, Validation mAP: {val_loss}\n"
+                f"Epoch {epoch+1}, Train loss: {train_loss}, Validation mAP: {val_map}\n"
             )
         f.close()
         # 更新学习率
         lr_scheduler.step()
 
+        # 早期停止
+        if epoch > 5 and val_maps[-1] < val_maps[-2] and val_maps[-2] < val_maps[-3]:
+            print("Early stopping")
+            break
+
     print("Training complete")
     # 保存训练结果,绘制图像，横坐标为epoch，纵坐标为validation mAP
-    plt.plot(range(1, num_epochs + 1), val_losses)
+    plt.plot(range(1, num_epochs + 1), val_maps)
     plt.xlabel("Epoch")
     plt.ylabel("Validation mAP")
-    plt.savefig("result.jpg")
+    plt.savefig(f"result_{time}_val_map.jpg")
 
-    torch.save(model.state_dict(), "faster_rcnn_model.pth")
+    plt.plot(range(1, num_epochs + 1), train_losses)
+    plt.xlabel("Epoch")
+    plt.ylabel("Train loss")
+    plt.savefig(f"result_{time}_train_loss.jpg")
+
+    torch.save(model.state_dict(), f"faster_rcnn_model_{time}.pth")
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--load_model", "-l", action="store_true", help="load model")
+    parser.add_argument("--load_model", "-l", type=str, default=None, help="load_model")
     parser.add_argument("--verbose", "-v", action="store_true", help="verbose")
     parser.add_argument("--num_epochs", "-n", type=int, default=10, help="num_epochs")
     # 根据实际情况修改路径
-    path_to_model = (
-        "/home/stu8/workspace/Objective-Detectio-ML2023/faster_rcnn_model.pth"
-    )
+    args = parser.parse_args()
+    load = False
+    path_to_model = None
+    if args.load_model:
+        path_to_model = args.load_model
+        load = True
 
     args = parser.parse_args()
     train(
-        load_model=args.load_model,
+        load_model=load,
         train_transforms=train_transforms,
         val_transforms=val_transforms,
         path_to_model=path_to_model,
