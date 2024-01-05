@@ -202,23 +202,26 @@ def conditional_random_crop(img, targets, output_size=(256, 256)):
     return resized_img, new_targets
 
 
-def rotate_box(bbox, angle, img_size):
+def rotate_box(target, angle, img_size):
     """
-    Rotate the bounding box.
+    Rotate the bounding boxes and filter out invalid boxes.
 
     Args:
-    - bbox (Tensor): The bounding box in [x_min, y_min, x_max, y_max] format.
+    - target (dict): Target dictionary containing 'boxes' and 'labels'.
     - angle (float): The rotation angle in degrees.
     - img_size (tuple): The size of the image as (width, height).
 
     Returns:
-    - Tensor: Rotated bounding box.
+    - dict: Updated target dictionary.
     """
+    bbox = target["boxes"]
+    labels = target["labels"]
     cx, cy = img_size[0] // 2, img_size[1] // 2  # Image center
     angle_rad = np.radians(angle)  # Convert angle to radians
 
     new_boxes = []
-    for box in bbox:
+    valid_labels = []
+    for i, box in enumerate(bbox):
         # Original coordinates
         x_min, y_min, x_max, y_max = box
         corners = np.array(
@@ -239,15 +242,23 @@ def rotate_box(bbox, angle, img_size):
         corners = corners + np.array([cx, cy])
 
         # Get new bounding box
-        # 使边界框为最接近的整数
         corners = np.rint(corners).astype(np.int32)
         x_min, y_min = corners.min(axis=0)
         x_max, y_max = corners.max(axis=0)
 
-        new_box = torch.tensor([x_min, y_min, x_max, y_max])
-        new_boxes.append(new_box.clamp(min=0))  # Ensure the bbox is within image bounds
+        if (x_max > x_min) and (y_max > y_min):
+            new_box = torch.tensor([x_min, y_min, x_max, y_max])
+            new_boxes.append(new_box)
+            valid_labels.append(labels[i])
 
-    return torch.stack(new_boxes)
+    target["boxes"] = torch.stack(new_boxes) if new_boxes else torch.empty((0, 4))
+    target["labels"] = (
+        torch.stack(valid_labels)
+        if valid_labels
+        else torch.empty((0,), dtype=torch.int64)
+    )
+
+    return target
 
 
 def random_cutout(img, probability=0.5, max_holes=1, max_length=40):
@@ -274,11 +285,11 @@ def random_cutout(img, probability=0.5, max_holes=1, max_length=40):
     return img
 
 
-def train_transforms(img, target):
+def train_transforms(img, target, size=(500, 500)):
     # 随机旋转
-    angle = torchvision.transforms.RandomRotation.get_params([-10, 10])
+    angle = torchvision.transforms.RandomRotation.get_params([-30, 30])
     img = F.rotate(img, angle)
-    target["boxes"] = rotate_box(target["boxes"], angle, img.size)
+    target = rotate_box(target, angle, img.size)
 
     # 随机裁剪
     # img, target = conditional_random_crop(img, target, output_size=(256, 256))
@@ -295,17 +306,17 @@ def train_transforms(img, target):
         target["boxes"][:, [0, 2]] = img.size[0] - target["boxes"][:, [2, 0]]
 
     # 调整图像大小
-    img, target = transform_image_and_boxes(img, target, new_size=(500, 500))
+    img, target = transform_image_and_boxes(img, target, new_size=size)
 
     img = F.to_tensor(img)
     # random cutout
-    img = random_cutout(img, probability=0.5, max_holes=1, max_length=40)
+    img = random_cutout(img, probability=0.5, max_holes=2, max_length=40)
 
     return img, target
 
 
-def val_transforms(img, target):
+def val_transforms(img, target, size=(500, 500)):
     # 调整图像大小
-    img, target = transform_image_and_boxes(img, target, new_size=(500, 500))
+    img, target = transform_image_and_boxes(img, target, new_size=size)
     img = F.to_tensor(img)
     return img, target

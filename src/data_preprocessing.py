@@ -67,11 +67,12 @@ def parse_voc_xml(file):
 
 
 class CustomVOCDataset(Dataset):
-    def __init__(self, img_dir, anno_dir, file_ids, transforms=None):
+    def __init__(self, img_dir, anno_dir, file_ids, transforms=None, input_size=500):
         self.img_dir = img_dir
         self.anno_dir = anno_dir
         self.file_ids = file_ids
         self.transforms = transforms
+        self.size = (input_size, input_size)
 
     def __getitem__(self, idx):
         img_id = self.file_ids[idx]
@@ -94,7 +95,7 @@ class CustomVOCDataset(Dataset):
         # img, target = transform_image_and_boxes(img, target)
 
         if self.transforms is not None:
-            img, target = self.transforms(img, target)
+            img, target = self.transforms(img, target, size=self.size)
 
         return img, target
 
@@ -125,7 +126,7 @@ def collate_fn(batch):
 
 
 def get_data_loaders(
-    base_dir, train_transforms, val_transforms, batch_size=4, verbose=True
+    base_dir, train_transforms, val_transforms, batch_size=4, verbose=True, input_size=500
 ):
     train_ids, val_ids = split_dataset(base_dir)
 
@@ -139,6 +140,7 @@ def get_data_loaders(
         anno_dir=os.path.join(base_dir, "Annotations"),
         file_ids=train_ids,
         transforms=train_transforms,
+        input_size=input_size,
     )
 
     val_dataset = CustomVOCDataset(
@@ -146,6 +148,7 @@ def get_data_loaders(
         anno_dir=os.path.join(base_dir, "Annotations"),
         file_ids=val_ids,
         transforms=val_transforms,
+        input_size=input_size,
     )
 
     train_loader = torch.utils.data.DataLoader(

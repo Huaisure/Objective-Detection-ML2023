@@ -74,7 +74,7 @@ if __name__ == "__main__":
         "--path_to_model",
         "-m",
         type=str,
-        default="/home/stu8/workspace/Objective-Detectio-ML2023/faster_rcnn_model.pth",
+        default="./faster_rcnn_model.pth",
         help="path_to_model",
     )
     parser.add_argument(

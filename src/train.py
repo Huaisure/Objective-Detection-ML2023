@@ -24,11 +24,17 @@ def train(
     path_to_model=None,
     verbose=False,
     num_epochs=10,
+    input_size=500,
 ):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     train_loader, val_loader = get_data_loaders(
-        "./data", train_transforms, val_transforms, batch_size=16, verbose=verbose
+        "./data",
+        train_transforms,
+        val_transforms,
+        batch_size=16,
+        verbose=verbose,
+        input_size=input_size,
     )
 
     num_classes = 21  # 20 类 + 1 背景类
@@ -84,7 +90,7 @@ def train(
 
         # 早期停止, 以train loss为指标
         if epoch > 5:
-            if np.mean(train_losses[-2:]) > np.mean(train_losses[-4:-2]):
+            if np.mean(train_losses[-3:]) > np.mean(train_losses[-6:-3]):
                 print("Early stop")
                 num_epochs = epoch + 1
                 break
@@ -110,6 +116,13 @@ def main():
     parser.add_argument("--load_model", "-l", type=str, default=None, help="load_model")
     parser.add_argument("--verbose", "-v", action="store_true", help="verbose")
     parser.add_argument("--num_epochs", "-n", type=int, default=10, help="num_epochs")
+    parser.add_argument(
+        "--input_size",
+        "-i",
+        type=int,
+        default=500,
+        help="input_size to model for training",
+    )
     # 根据实际情况修改路径
     args = parser.parse_args()
     load = False
@@ -126,6 +139,7 @@ def main():
         path_to_model=path_to_model,
         verbose=args.verbose,
         num_epochs=args.num_epochs,
+        input_size=args.input_size,
     )
 
 
